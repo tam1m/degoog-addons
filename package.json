@@ -1,7 +1,7 @@
 {
   "name": "degoog-addons",
   "description": "TypeType video search engine and inline player for degoog.",
-  "author": "tam1m",
+  "author": "https://github.com/tam1m",
   "plugins": [
     {
       "path": "plugins/typetype-player-slot",
