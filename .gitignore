@@ -1,10 +1,11 @@
 *
 !.gitignore
+!README.md
 !package.json
+
 !engines/
 !engines/typetype-video/
-!engines/typetype-video/*
+!engines/typetype-video/**
 !plugins/
 !plugins/typetype-player-slot/
-!plugins/typetype-player-slot/*
-!README.md
+!plugins/typetype-player-slot/**
