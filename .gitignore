@@ -7,3 +7,4 @@
 !plugins/
 !plugins/typetype-player-slot/
 !plugins/typetype-player-slot/*
+!README.md
