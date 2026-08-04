@@ -1,0 +1,25 @@
+{
+  "name": "degoog-addons",
+  "description": "TypeType video search engine and inline player for degoog.",
+  "author": "tam1m",
+  "plugins": [
+    {
+      "path": "plugins/typetype-player-slot",
+      "name": "TypeType Inline Player",
+      "description": "Embed a TypeType video player inline with search results.",
+      "version": "1.0.0",
+      "type": "slot"
+    }
+  ],
+  "themes": [],
+  "engines": [
+    {
+      "path": "engines/typetype-video",
+      "name": "TypeType",
+      "description": "Search YouTube, Bilibili, and Niconico through your self-hosted TypeType instance.",
+      "version": "1.0.0"
+    }
+  ],
+  "transports": [],
+  "autocomplete": []
+}
