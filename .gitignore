@@ -1,0 +1,9 @@
+*
+!.gitignore
+!package.json
+!engines/
+!engines/typetype-video/
+!engines/typetype-video/*
+!plugins/
+!plugins/typetype-player-slot/
+!plugins/typetype-player-slot/*
