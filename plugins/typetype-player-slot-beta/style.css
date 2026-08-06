@@ -136,6 +136,36 @@
   border: none;
 }
 
+/* --- Debug --- */
+.typetype-beta-debug {
+  padding: 5px 14px;
+  font-size: 11px;
+  font-family: monospace;
+  border-top: 1px solid var(--degoog-border, #333);
+  cursor: pointer;
+  user-select: none;
+}
+.typetype-beta-debug-summary {
+  color: var(--degoog-text-secondary, #777);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.typetype-beta-debug--high .typetype-beta-debug-summary { color: #4caf50; }
+.typetype-beta-debug--med  .typetype-beta-debug-summary { color: #ff9800; }
+.typetype-beta-debug--low  .typetype-beta-debug-summary { color: var(--degoog-text-secondary, #777); }
+.typetype-beta-debug--blocked { background: rgba(244,67,54,0.08); }
+.typetype-beta-debug--blocked .typetype-beta-debug-summary { color: #f44336; }
+.typetype-beta-debug-detail {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--degoog-border, #444);
+  color: var(--degoog-text-secondary, #888);
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.6;
+}
+
 /* --- Responsive --- */
 @media (max-width: 600px) {
   .typetype-beta-card {

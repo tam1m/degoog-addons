@@ -44,7 +44,7 @@ function assertEqual(actual: any, expected: any, msg: string) {
 function makeSlot(instanceUrl = 'https://watch.example.com') {
   const s = { ...slot }
   s.configure({ instanceUrl })
-  s.init({ template: '<div class="typetype-beta" data-id="{{id}}">{{title}}{{#debugInfo}}<div class="typetype-beta-debug">{{debugInfo}}</div>{{/debugInfo}}</div>' })
+  s.init({ template: '<div class="typetype-beta" data-id="{{id}}">{{title}}{{#debugSummary}}<div class="typetype-beta-debug typetype-beta-debug--{{debugClass}}"><div class="typetype-beta-debug-summary">{{debugSummary}}</div></div>{{/debugSummary}}</div>' })
   return s
 }
 
@@ -337,8 +337,8 @@ function fakeCtx(overrides?: { results?: any[] }): any {
     assert(/\d+ms/.test(result.html), 'debug shows timing in ms')
 
     // Print a sample so you can see the output
-    const debugLine = result.html.match(/<div class="typetype-beta-debug"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '(not found)'
-    console.log(`\n  Sample debug footer:\n  ${debugLine}`)
+    const debugSum = result.html.match(/<div class="typetype-beta-debug-summary">([\s\S]*?)<\/div>/)?.[1] ?? '(not found)'
+    console.log(`\n  Sample debug summary:\n  ${debugSum}`)
   })
 
   // Debug off: no stats footer

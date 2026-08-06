@@ -25,7 +25,10 @@
       allow="autoplay; encrypted-media"
     ></iframe>
   </div>
-  {{#debugInfo}}
-  <div class="typetype-beta-debug" style="padding:6px 14px;font-size:11px;color:var(--degoog-text-secondary,#777);border-top:1px solid var(--degoog-border,#333);font-family:monospace">{{debugInfo}}</div>
-  {{/debugInfo}}
+  {{#debugSummary}}
+  <div class="typetype-beta-debug typetype-beta-debug--{{debugClass}}">
+    <div class="typetype-beta-debug-summary" title="Click to toggle details">{{debugSummary}}</div>
+    <div class="typetype-beta-debug-detail" style="display:none">{{debugDetail}}</div>
+  </div>
+  {{/debugSummary}}
 </div>

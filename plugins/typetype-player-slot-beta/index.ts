@@ -118,6 +118,7 @@ interface IntentScore {
   score: number
   confidence: "HIGH" | "MEDIUM" | "LOW"
   signals: string[]
+  breakdown: string[]
 }
 
 // Tokens that explicitly signal video intent
@@ -205,14 +206,20 @@ function computeVideoIntentScore(rawQuery: string): IntentScore {
 
   let score = 0.0
   const signals: string[] = []
+  const breakdown: string[] = []
+
+  function add(w: number, label: string) {
+    score += w
+    signals.push(label)
+    breakdown.push(`${w >= 0 ? "+" : "−"}${Math.abs(w).toFixed(2)} ${label}`)
+  }
 
   // 1. Phrase patterns — multi-word signals (operate on full query, not tokens)
   let howToPhysicalMatched = false
   for (const pattern of PHRASE_PATTERNS) {
     if (pattern.regex.test(normalizedQuery)) {
       if (pattern.name === "phrase:how_to" && howToPhysicalMatched) continue
-      score += pattern.weight
-      signals.push(pattern.name)
+      add(pattern.weight, pattern.name)
       if (pattern.name === "phrase:how_to_physical") howToPhysicalMatched = true
     }
   }
@@ -220,23 +227,23 @@ function computeVideoIntentScore(rawQuery: string): IntentScore {
   // 2. Single-pass token evaluation — priority order, one match per token
   for (const token of tokens) {
     if (NEGATIVE_TRIGGERS.has(token)) {
-      score -= 0.80; signals.push(`negative:${token}`)
+      add(-0.80, `negative:${token}`)
     } else if (KNOWN_ENTITIES.has(token)) {
-      score += 0.85; signals.push(`entity:${token}`)
+      add(0.85, `entity:${token}`)
     } else if (EXPLICIT_TRIGGERS.has(token)) {
-      score += 1.00; signals.push(`explicit:${token}`)
+      add(1.00, `explicit:${token}`)
     } else if (FORMAT_TRIGGERS.has(token)) {
-      score += 0.80; signals.push(`format:${token}`)
+      add(0.80, `format:${token}`)
     } else if (VISUAL_DOMAINS.has(token)) {
-      score += 0.75; signals.push(`domain:${token}`)
+      add(0.75, `domain:${token}`)
     } else if (VISUAL_INSTRUCTION_VERBS.has(token)) {
-      score += 0.45; signals.push(`visual_verb:${token}`)
+      add(0.45, `visual_verb:${token}`)
     } else if (token === "watch" && !safeQuery.includes("smartwatch")) {
-      score += 0.45; signals.push("action:watch")
+      add(0.45, "action:watch")
     } else if (ACTION_VERBS.has(token)) {
-      score += 0.45; signals.push(`action:${token}`)
+      add(0.45, `action:${token}`)
     } else if (WEAK_MODIFIERS.has(token)) {
-      score += 0.30; signals.push(`modifier:${token}`)
+      add(0.30, `modifier:${token}`)
     }
   }
 
@@ -249,7 +256,7 @@ function computeVideoIntentScore(rawQuery: string): IntentScore {
     confidence = "MEDIUM"
   }
 
-  return { score: finalScore, confidence, signals }
+  return { score: finalScore, confidence, signals, breakdown }
 }
 
 // === Similarity Gate (tiebreaker for MEDIUM/LOW confidence queries) ===
@@ -570,12 +577,12 @@ export const slot = {
     const { score } = computeVideoIntentScore(trimmed)
 
     // Single-word queries with no video signals are too ambiguous
-    if (!trimmed.includes(" ") && score <= 0) return false
+    if (!trimmed.includes(" ") && score <= 0) return this.debug
 
     // Block only when negatives clearly dominate (net score < -0.50).
     // At -0.50, there are negative triggers with at most one weak
     // positive — not worth activating the slot.
-    if (score < -0.50) return false
+    if (score < -0.50) return this.debug
 
     // Let everything else through — the similarity gate in execute()
     // will make the final call using actual search results.
@@ -596,9 +603,12 @@ export const slot = {
 
     const t0 = Date.now()
     const debug: Record<string, string> = {}
+    const trace: string[] = []
+
+    function note(s: string) { trace.push(s) }
 
     const render = (data: Record<string, string>): string => {
-      let html = this._template || '<div class="typetype-beta">{{title}}{{#debugInfo}}<div class="typetype-beta-debug">{{debugInfo}}</div>{{/debugInfo}}</div>'
+      let html = this._template || '<div class="typetype-beta">{{title}}{{#debugSummary}}<div class="typetype-beta-debug typetype-beta-debug--{{debugClass}}"><div class="typetype-beta-debug-summary">{{debugSummary}}</div><div class="typetype-beta-debug-detail">{{debugDetail}}</div></div>{{/debugSummary}}</div>'
       for (const [key, value] of Object.entries(data)) {
         html = html.replace(new RegExp(`\{\{\s*${key}\s*\}\}`, "g"), value ?? "")
         html = html.replace(
@@ -609,38 +619,75 @@ export const slot = {
       return html.replace(/\{\{\s*[#/]?\w+\s*\}\}/g, "")
     }
 
-    const finish = (data: Record<string, string> | null): { html: string } => {
-      if (!data) return { html: "" }
+    const finish = (data: Record<string, string> | null, reason?: string): { html: string } => {
       debug.totalMs = String(Date.now() - t0)
-      data.debugInfo = ""
+
       if (this.debug) {
-        data.debugInfo = [
-          debug.score ? `score ${debug.score} (${debug.confidence ?? "?"})` : null,
+        const cls = !data ? "blocked"
+          : debug.confidence === "HIGH" ? "high"
+          : debug.confidence === "MEDIUM" ? "med" : "low"
+
+        const summary = [
+          debug.score != null ? `score ${debug.score} (${debug.confidence ?? "?"})` : null,
+          `"${trimmed.slice(0, 60)}${trimmed.length > 60 ? "…" : ""}"`,
           debug.source ? `src ${debug.source}` : null,
           debug.tier ? `tier ${debug.tier}` : null,
           `${debug.totalMs}ms`,
           debug.items != null ? `${debug.items} items` : null,
           debug.apiMs ? `api ${debug.apiMs}ms` : null,
-          debug.signals ? `signals: ${debug.signals}` : null,
           debug.simMatch ? `sim:${debug.simMatch}` : null,
+          reason ? `blocked: ${reason}` : null,
         ].filter(Boolean).join(" · ")
+
+        const detail = trace.join("\n")
+
+        if (!data) {
+          return { html: render({ title: "", debugSummary: summary, debugDetail: detail, debugClass: cls }) }
+        }
+
+        data.debugSummary = summary
+        data.debugDetail = detail
+        data.debugClass = cls
+      } else if (data) {
+        data.debugSummary = ""
       }
+
+      if (!data) return { html: "" }
       return { html: render(data) }
     }
 
     const trimmed = query.trim()
-    if (!trimmed) return finish(null)
+    if (!trimmed) return finish(null, "empty query")
+
+    // Debug mode: if this query would have been blocked by trigger(),
+    // skip the entire pipeline — just show the debug card.
+    if (this.debug &&
+        !trimmed.includes("://") &&
+        !isBareVideoId(trimmed) &&
+        !isChannelHandle(trimmed) &&
+        !hasPlatformPrefix(trimmed)) {
+      const { score, confidence, breakdown } = computeVideoIntentScore(trimmed)
+      if ((!trimmed.includes(" ") && score <= 0) || score < -0.50) {
+        debug.score = String(score)
+        debug.confidence = confidence
+        note(`trigger: NLP score ${score.toFixed(2)} < -0.50 → blocked (debug override)`)
+        if (breakdown.length > 0) note(`  signals: ${breakdown.join("  ")}`)
+        return finish(null, `trigger blocked (score ${score.toFixed(2)})`)
+      }
+    }
 
     // --- Tier 1: URL → render with metadata fetch ---
     // Also handle URLs missing the scheme (e.g. "youtube.com/watch?v=...")
     let urlQuery = trimmed
     if (!urlQuery.includes("://") && /^[\w-]+\.[a-z]{2,}[/?#]/.test(urlQuery)) {
       urlQuery = "https://" + urlQuery
+      note(`trigger: scheme-less URL → prepended https://`)
     }
 
     if (urlQuery.includes("://")) {
       const extracted = extractVideoId(urlQuery)
-      if (!extracted) return finish(null)
+      if (!extracted) return finish(null, "no video ID in URL")
+      note(`trigger: URL → extracted ${extracted.id} (${extracted.service})`)
       debug.tier = "1"; debug.source = "url"
 
       // Fetch metadata so the card has a title and thumbnail
@@ -659,6 +706,7 @@ export const slot = {
     }
 
     if (isChannelHandle(trimmed)) {
+      note(`trigger: channel handle → "${trimmed}" (needs search results)`)
       // Handles need search results to find the actual video — fall through
     }
 
@@ -667,28 +715,36 @@ export const slot = {
 
     if (isBareVideoId(trimmed)) {
       candidateId = trimmed
+      note(`trigger: bare video ID pattern → "${trimmed}"`)
     } else {
-      // Also catch watch?v= or /embed/ bare IDs that look like video IDs
       const ttId = extractTypeTypeId(trimmed)
       if (ttId && isBareVideoId(ttId)) {
         candidateId = ttId
+        note(`trigger: TypeType ?v= ID → "${ttId}"`)
       }
     }
 
     if (candidateId) {
       const item = await validateBareVideoId(candidateId, this.instanceUrl, context)
       if (item) {
+        note(`validate: stream/bootstrap → valid`)
         debug.tier = "2"; debug.source = "validated"
         return finish(toRenderData(item, candidateId, this.instanceUrl))
       }
-      return finish(null)
+      note(`validate: stream/bootstrap → invalid`)
+      return finish(null, "invalid video ID")
     }
 
     // --- Tier 3: NLP + results for text queries ---
     const intent = computeVideoIntentScore(trimmed)
+    note(`trigger: NLP score ${intent.score.toFixed(2)} ≥ -0.50 → passed`)
     debug.score = String(intent.score)
     debug.confidence = intent.confidence
-    debug.signals = intent.signals.slice(0, 5).join(", ")
+
+    note(`nlp: score ${intent.score.toFixed(2)} (${intent.confidence})`)
+    if (intent.breakdown.length > 0) {
+      note(`  signals: ${intent.breakdown.join("  ")}`)
+    }
 
     let items: NormalizedItem[] = []
     let sourceLabel = "none"
@@ -715,21 +771,26 @@ export const slot = {
     debug.items = String(items.length)
     if (apiFetchMs > 0) debug.apiMs = String(apiFetchMs)
 
-    if (items.length === 0) return finish(null)
+    note(`source: ${sourceLabel} → ${items.length} results${apiFetchMs > 0 ? ` (api ${apiFetchMs}ms)` : ""}`)
+
+    if (items.length === 0) return finish(null, "no results")
 
     // --- Tier 3a: HIGH confidence → skip similarity, take first valid result ---
     if (intent.confidence === "HIGH") {
+      note(`tier: HIGH confidence → skip similarity gate`)
       for (const item of items.slice(0, 5)) {
         if (!item.url) continue
         const extracted = extractVideoId(item.url)
         if (!extracted) continue
+        note(`  first result: "${item.title.slice(0, 60)}"`)
         debug.tier = "3a"
         return finish(toRenderData(item, extracted.id, this.instanceUrl))
       }
-      return finish(null)
+      return finish(null, "no extractable ID")
     }
 
     // --- Tier 3b: MEDIUM / LOW confidence → run similarity gate ---
+    note(`tier: ${intent.confidence} confidence → run similarity gate`)
     debug.tier = "3b"
     for (const item of items.slice(0, 5)) {
       if (!item.title || !item.url) continue
@@ -745,10 +806,12 @@ export const slot = {
       if (!extracted) continue
 
       debug.simMatch = "yes"
+      note(`  match: "${item.title.slice(0, 60)}"`)
       return finish(toRenderData(item, extracted.id, this.instanceUrl))
     }
 
     debug.simMatch = "no"
-    return finish(null)
+    note(`  no title/channel match in top 5 results`)
+    return finish(null, "no title match")
   },
 }
