@@ -14,7 +14,7 @@
       "path": "plugins/typetype-player-slot-beta",
       "name": "TypeType Inline Player (Beta)",
       "description": "Beta slot with NLP intent detection for smarter activation.",
-      "version": "1.0.1-beta",
+      "version": "1.0.2-beta",
       "type": "slot"
     }
   ],

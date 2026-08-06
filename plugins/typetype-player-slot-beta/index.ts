@@ -271,10 +271,17 @@ function matchesQuery(query: string, title: string): boolean {
   if (queryWords.length === 0) return false
   if (queryWords.length === 1) return false // single words too ambiguous
 
+  // Substring match (either direction)
   if (t.includes(q) || q.includes(t)) return true
 
-  const titleWords = new Set(t.split(/\s+/).filter(Boolean))
-  return queryWords.every(w => titleWords.has(w))
+  // Fuzzy word overlap: a query word matches if it's contained within
+  // or contains a title word (handles plural/singular: coach ↔ coaches)
+  const titleWords = t.split(/\s+/).filter(Boolean)
+  const matched = queryWords.filter(qw =>
+    titleWords.some(tw => tw.includes(qw) || qw.includes(tw))
+  ).length
+  // Require ≥ 50% overlap, with a minimum of 2 matching words
+  return matched >= 2 && matched / queryWords.length >= 0.5
 }
 
 function queryMatchesChannel(query: string, source: string): boolean {
@@ -306,6 +313,7 @@ interface TypeTypeSearchItem {
   thumbnailUrl: string
   uploaderName: string
   duration: number
+  publishedAt: number | null
 }
 
 /**
@@ -424,6 +432,7 @@ async function fetchTypeTypeSearch(
       thumbnailUrl: item.thumbnailUrl ?? "",
       uploaderName: item.uploaderName ?? "",
       duration: item.duration ?? 0,
+      publishedAt: typeof item.publishedAt === "number" ? item.publishedAt : null,
     }))
   } catch (e: any) {
     if (e?.name === "SentinelBreach") throw e
@@ -440,12 +449,13 @@ interface NormalizedItem {
   thumbnail?: string
   uploader?: string
   duration?: string  // pre-formatted (e.g. "3:42"), empty if unavailable
+  date?: string       // release date (e.g. "Aug 5, 2020"), empty if unavailable
 }
 
 function toRenderData(item: NormalizedItem, videoId: string, instanceUrl: string): Record<string, string> {
   const embedUrl = buildTypeTypeApiUrl(instanceUrl, `embed/${videoId}`, { autoplay: "1" })
   const watchUrl = buildTypeTypeApiUrl(instanceUrl, "watch", { v: videoId })
-  const meta = [item.uploader || null, item.duration || null].filter(Boolean).join(" · ")
+  const meta = [item.uploader || null, item.duration || null, item.date || null].filter(Boolean).join(" · ")
 
   return {
     id: videoId,
@@ -483,12 +493,20 @@ function fromDegoogResult(r: any): NormalizedItem {
 
 /** Map a TypeType API result into the normalized item shape. */
 function fromTypeTypeItem(item: TypeTypeSearchItem): NormalizedItem {
+  let date: string | undefined
+  if (item.publishedAt) {
+    const d = new Date(item.publishedAt)
+    date = [String(d.getDate()).padStart(2, "0"),
+            String(d.getMonth() + 1).padStart(2, "0"),
+            d.getFullYear()].join(".")
+  }
   return {
     url: item.url,
     title: item.title,
     thumbnail: item.thumbnailUrl,
     uploader: item.uploaderName || undefined,
     duration: formatDuration(item.duration),
+    date,
   }
 }
 
