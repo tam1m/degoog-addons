@@ -9,3 +9,5 @@
 !plugins/
 !plugins/typetype-player-slot/
 !plugins/typetype-player-slot/**
+!plugins/typetype-player-slot-beta/
+!plugins/typetype-player-slot-beta/**

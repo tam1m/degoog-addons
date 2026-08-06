@@ -9,6 +9,13 @@
       "description": "Embed a TypeType video player inline with search results.",
       "version": "1.0.0",
       "type": "slot"
+    },
+    {
+      "path": "plugins/typetype-player-slot-beta",
+      "name": "TypeType Inline Player (Beta)",
+      "description": "Beta slot with NLP intent detection for smarter activation.",
+      "version": "1.0.0-beta",
+      "type": "slot"
     }
   ],
   "themes": [],
@@ -21,5 +28,8 @@
     }
   ],
   "transports": [],
-  "autocomplete": []
+  "autocomplete": [],
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
+  }
 }
